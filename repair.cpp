@@ -103,7 +103,17 @@ struct FrequencyTable {
 
 };
 
-size_t character_freqency(const char_type*const text, size_t text_length, char_type a) {
+std::string text_to_string(const char_type*const text, size_t text_length) {
+	std::stringstream ss;
+	ss << "Text: ";
+	for(size_t i = 0; i < text_length; ++i) {
+		ss << text[i];
+	}
+	ss << std::endl;
+	return ss.str();
+}
+
+size_t character_frequency(const char_type*const text, size_t text_length, char_type a) {
 	size_t frequency = 0;
 	for(size_t i = 0; i < text_length; ++i) {
 		if(text[i] == a) { ++frequency; }
@@ -112,7 +122,7 @@ size_t character_freqency(const char_type*const text, size_t text_length, char_t
 }
 
 
-size_t bigram_freqency(const char_type*const text, size_t text_length, char_type a, char_type b) {
+size_t bigram_frequency(const char_type*const text, size_t text_length, char_type a, char_type b) {
 	bool matched_first = false;
 	size_t frequency = 0;
 	for(size_t i = 0; i < text_length; ++i) {
@@ -130,24 +140,100 @@ size_t bigram_freqency(const char_type*const text, size_t text_length, char_type
 	return frequency;
 }
 
+#include <stdio.h>  
+#include <unistd.h>  
 
-int main() {
 
-	std::cout << sizeof(Entry) << std::endl;
-	const std::string filename = "Makefile";
+int main(int argc, char *argv[]) {
+	
+	size_t additional_memory = 200;
+	size_t text_length = 0;
+	std::string filename;
+
+
+	if(argc < 2) {
+		std::cerr << "Usage: " << argv[0] << " filename [prefixlength] [additional_memory]" << std::endl;
+		return 1;
+	}
+
+	int opt;
+    while((opt = getopt(argc, argv, ":f:p:m:")) != -1)  
+    {  
+        switch(opt)  
+        {  
+            case 'f':  
+				filename = optarg;
+                break;  
+			case 'p':
+				text_length = strtoul(optarg, nullptr, 10);
+				if(text_length == 0) {
+					std::cerr << "Cannot parse prefix length: " << optarg << std::endl;
+					return 2;
+				}
+				break;
+			case 'm':
+				additional_memory = strtoul(optarg, nullptr, 10);
+				if(additional_memory == 0) {
+					std::cerr << "Cannot parse additional memory: " << optarg << std::endl;
+					return 2;
+				}
+				if(sizeof(char_type)*additional_memory/sizeof(Entry) < 3) {
+					additional_memory = sizeof(Entry)*3 / sizeof(char_type);
+				}
+				break;
+            case ':':  
+                std::cout << "option " << opt << " needs a value." << std::endl;
+				return 3;
+                break;  
+            case '?':  
+                printf("unknown option: %c\n", optopt); 
+                break;  
+        }  
+    }  
+
+	if(filename.empty()) {
+		std::cerr << "Need to specify a filename" << std::endl;
+		return 4;
+	}
+	{
+		std::ifstream is(filename);
+		if(!is) {
+			std::cerr << "Could not read file " << filename << std::endl;
+			return 4;
+		}
+	}
+	if(text_length == 0) {
+		try {
+			text_length = fs::file_size(filename);  // size of the text we deal with, subject to shrinkage
+		} catch(fs::filesystem_error& e) {
+			std::cerr << "Could not read file " << filename << std::endl;
+			std::cerr << e.what() << '\n';
+			return 3;
+		}
+	}
+
+	std::cout << "text length: " << text_length << std::endl;
+	std::cout << "additional memory: " << additional_memory << std::endl;
+	std::cout << "file name: " << filename << std::endl;
+	std::cout << "byte size of an entry: " << sizeof(Entry) << std::endl;
 	try {
-		size_t text_length = fs::file_size(filename);  // size of the text we deal with, subject to shrinkage
-		const size_t memory_budget = text_length+200; // constant size of total memory we have
+		// size_t text_length = fs::file_size(filename);  // size of the text we deal with, subject to shrinkage
+		const size_t memory_budget = text_length+additional_memory; // constant size of total memory we have
 		char_type maximum_character = 0; // the currently maximum value a character can have
 
 		DCHECK_LT(text_length, memory_budget); // need at least some memory
 
-		char_type* text = new char_type[memory_budget];
+		char_type*const text = new char_type[memory_budget];
 		std::ifstream is(filename);
 		for(size_t i = 0; i < text_length && is; ++i) {
 			text[i] = is.get();
 			if(text[i] > maximum_character) { maximum_character = text[i]; }
 		}
+		if(text_length < 100) {
+			std::cout << text_to_string(text, text_length);
+		}
+
+
 		size_t available_entries = (sizeof(char_type)*(memory_budget-text_length))/sizeof(Entry);
 		DCHECK_GT(available_entries, 2); // need at least some memory
 		// for(size_t i = text_length; i <  memory_budget; ++i) { text[i] = 0; }
@@ -155,8 +241,9 @@ int main() {
 		
 		while(true) { // for loop for every round
 			++round_k;
+			std::cout << "Round " << round_k << std::endl;
 
-			Entry* entries = reinterpret_cast<Entry*>(text+text_length);
+			Entry*const entries = reinterpret_cast<Entry*>(text+text_length);
 			for(size_t i = 0; i < available_entries; ++i) { entries[i].clear(); }
 
 			FrequencyTable helperTable(entries+available_entries/2,available_entries/2);	
@@ -173,9 +260,17 @@ int main() {
 				// else {
 				// 	helperTable[pos].increment();
 				// }
-				std::cout << pos << std::endl;
+				// std::cout << pos << std::endl;
 				if(pos == helperTable.length()-1 || i+2 == text_length) {
+					size_t run_position = -1ULL;
 					for(size_t j = 0; j < text_length-1; ++j) {
+						if(run_position == -1ULL && text[j] == text[j+1]) {
+							run_position = j;
+						} else if(run_position != -1ULL && text[j] != text[j+1]) {
+							run_position = -1ULL;
+						}
+						// if in a run, take only every second bigram
+						if(run_position != -1ULL && ((j-run_position) % 2 != 0)) { continue; }
 						bigram = make_bigram(text[j],text[j+1]);
 						pos = helperTable.find(bigram);
 						if(pos == (-1ULL)) { continue; }
@@ -183,38 +278,40 @@ int main() {
 					}
 					for(size_t k = 0; k < helperTable.length(); ++k) { 
 						if(helperTable[k].valid()) {
-							helperTable[k].decrement(); 
+							helperTable[k].decrement(); // since insert also counts one up
+							DCHECK_EQ(bigram_frequency(text, text_length, helperTable[k].first(), helperTable[k].second()), helperTable[k].frequency());
 						}
-					} // as insert also counts one up
-					std::cout << "remainder helperTable before sort:" << helperTable.to_string();
+					} 
+					DLOG << "remainder helperTable before sort:" << helperTable.to_string();
 					std::sort(entries, entries+available_entries, [](const Entry&a, const Entry&b) {
 							// true if a > b
 							return a.frequency() > b.frequency();
 							});
-					std::cout << "remainder helperTable after sort:" << helperTable.to_string();
+					DLOG << "remainder helperTable after sort:" << helperTable.to_string();
 
 					helperTable.clear();
 				}
 			}
-			std::cout << "final table:" << mainTable.to_string();
+			DLOG << "final table:" << mainTable.to_string();
 
  ON_DEBUG(
 		for(size_t i = 0; i < mainTable.length(); ++i) {
 			if(mainTable[i].frequency() == 0) continue;
-			DCHECK_EQ(bigram_freqency(text, text_length, mainTable[i].first(), mainTable[i].second()), mainTable[i].frequency());
+			DCHECK_EQ(bigram_frequency(text, text_length, mainTable[i].first(), mainTable[i].second()), mainTable[i].frequency());
 		}
 		)
 
 			if(mainTable[mainTable.max()].frequency() < 2) break;
 
-			const size_t min_frequency = mainTable[mainTable.min()].frequency();
+			const size_t min_frequency = std::max<size_t>(2,mainTable[mainTable.min()].frequency());
 			DCHECK_NE(min_frequency, 0);
 
 			size_t turn_i = 0;
 			for(size_t max_index = mainTable.max(); mainTable[max_index].frequency() >= min_frequency; max_index = mainTable.max()) {
-				++turn_i;
+				++turn_i; // in each turn we create a new non-terminal
+				DLOG << "Turn " << turn_i << " of Round " << round_k << std::endl;
 
-				Entry& max_entry = mainTable[mainTable.max()];
+				Entry& max_entry = mainTable[mainTable.max()]; // this is the bigram we want to replace
 				std::cout << "CREATE RULE " << char(maximum_character+1) << " -> " << max_entry.to_string() << std::endl;
 				++maximum_character; // new non-terminal gets value of maximum_character assigned
 				size_t replacement_offset = 0;
@@ -225,22 +322,42 @@ int main() {
 							make_bigram(text[i],next_char) == max_entry.bigram()) {
 						if(i > 0) {
 							const size_t prec_bigram_index = mainTable.find(make_bigram(text[i-1],text[i]));
-							if(prec_bigram_index != (-1ULL)) {
-								Entry& affected_entry = mainTable[prec_bigram_index];
-								affected_entry.decrement();
-								if(affected_entry.frequency() < min_frequency) {
-									affected_entry.clear();
+							// we do not want to decrement the maximum bigram, which can happen if it is twice 
+							// the same character
+							if(prec_bigram_index != (-1ULL) && prec_bigram_index != max_index) { 
+								bool in_even_run = true; // when replacing 'ac' in 'aaac' we decrement 'aa' only if the run of 'aaa's is even. 
+								if(text[i-1] == text[i] && i > 1) {
+									size_t r; // CAVEAT: can be tracked while scanning for max_entry
+									for(r = i-2; text[r] == text[i] && r >= 0; --r) {} 
+									if( (i-r) % 2 == 1) { in_even_run = false; }
+								}
+								if(in_even_run) {
+									Entry& affected_entry = mainTable[prec_bigram_index];
+									affected_entry.decrement();
+									if(affected_entry.frequency() < min_frequency) {
+										affected_entry.clear();
+									}
 								}
 							}
 						}
 						if(i+replacement_offset+2 < text_length) {
 							const char_type nextnext_char = text[i+replacement_offset+2];
+
 							const size_t next_bigram_index = mainTable.find(make_bigram(next_char, nextnext_char));
-							if(next_bigram_index != (-1ULL)) {
-								Entry& affected_entry = mainTable[next_bigram_index];
-								affected_entry.decrement();
-								if(affected_entry.frequency() < min_frequency) {
-									affected_entry.clear();
+							if(next_bigram_index != (-1ULL) && next_bigram_index != max_index) {
+
+								bool in_even_run = true; // when replacing 'ac' in 'accc' we decrement 'cc' only if the run of 'ccc's is even. 
+								if(nextnext_char == next_char) { // the next bigram is in a run
+									size_t r; // CAVEAT: compute this only once and not on the fly
+									for(r = i+replacement_offset+2; text[r] == next_char && r < text_length; ++r) {} 
+									if( (r-i-replacement_offset) % 2 == 0) { in_even_run = false; }
+								}
+								if(in_even_run) {
+									Entry& affected_entry = mainTable[next_bigram_index];
+									affected_entry.decrement();
+									if(affected_entry.frequency() < min_frequency) {
+										affected_entry.clear();
+									}
 								}
 							}
 						}
@@ -255,7 +372,7 @@ int main() {
  ON_DEBUG(
 		for(size_t i = 0; i < mainTable.length(); ++i) {
 			if(mainTable[i].frequency() == 0) continue;
-			DCHECK_EQ(bigram_freqency(text, text_length, mainTable[i].first(), mainTable[i].second()), mainTable[i].frequency());
+			DCHECK_EQ(bigram_frequency(text, text_length, mainTable[i].first(), mainTable[i].second()), mainTable[i].frequency());
 		}
 		)
 
@@ -267,7 +384,7 @@ int main() {
 				for(size_t i = 0; i < text_length; ++i) {
 					if(i > 0 && text[i] == maximum_character) {
 						D[D_length] = text[i-1];
-						DCHECK_GT(bigram_freqency(text, text_length, D[D_length], maximum_character), 0);
+						DCHECK_GT(bigram_frequency(text, text_length, D[D_length], maximum_character), 0);
 						++D_length;
 					}
 				}
@@ -276,7 +393,7 @@ int main() {
 
 				ON_DEBUG(
 				for(size_t i = 0; i < D_length; ++i) {
-					DCHECK_GT(bigram_freqency(text, text_length, D[i], maximum_character), 0);
+					DCHECK_GT(bigram_frequency(text, text_length, D[i], maximum_character), 0);
 				})
 
 				{
@@ -289,9 +406,9 @@ int main() {
 							DCHECK_EQ(std::accumulate(D, D+D_length, 0ULL, [c] (size_t s, char_type ct) -> size_t { return c == ct ? s+1 : s; }), sum);
 							auto&& min_entry = mainTable[mainTable.min()];
 							if(min_entry.frequency() < sum) {
-								DCHECK_GT(bigram_freqency(text, text_length, D[i-1], maximum_character), 0);
+								DCHECK_GT(bigram_frequency(text, text_length, D[i-1], maximum_character), 0);
 								min_entry.set(make_bigram(D[i-1], maximum_character), sum);
-								DCHECK_EQ(bigram_freqency(text, text_length, D[i-1], maximum_character), sum);
+								DCHECK_EQ(bigram_frequency(text, text_length, D[i-1], maximum_character), sum);
 							}
 							c = D[i];
 							sum = 1;
@@ -312,7 +429,7 @@ int main() {
 
 				ON_DEBUG(
 				for(size_t i = 0; i < D_length; ++i) {
-					DCHECK_GT(bigram_freqency(text, text_length, maximum_character, D[i]), 0);
+					DCHECK_GT(bigram_frequency(text, text_length, maximum_character, D[i]), 0);
 				})
 
 				{
@@ -325,22 +442,22 @@ int main() {
 							DCHECK_EQ(std::accumulate(D, D+D_length, 0ULL, [c] (size_t s, char_type ct) -> size_t { return c == ct ? s+1 : s; }), sum);
 							auto&& min_entry = mainTable[mainTable.min()];
 							if(min_entry.frequency() < sum) {
-								DCHECK_GT(bigram_freqency(text, text_length, maximum_character, D[i-1]), 0);
+								DCHECK_GT(bigram_frequency(text, text_length, maximum_character, D[i-1]), 0);
 								min_entry.set(make_bigram(maximum_character, D[i-1]), sum);
-								DCHECK_EQ(bigram_freqency(text, text_length, maximum_character, D[i-1]), sum);
+								DCHECK_EQ(bigram_frequency(text, text_length, maximum_character, D[i-1]), sum);
 							}
 							c = D[i];
 							sum = 1;
 						}
 					}
 				}
+				if(text_length < 100) {
+					std::cout << text_to_string(text, text_length);
+				}
+
 			}// for looping all elements of the frequency table
 		}// while loop for rounds
 		std::cout << "Size of start symbol: " << text_length << std::endl;
-		for(size_t i = 0; i < text_length; ++i) {
-			std::cout << text[i];
-		}
-		std::cout << std::endl;
 
 		delete [] text;
 

@@ -3,12 +3,21 @@
 #pragma once
 
 
+class DummyLogger {
+};
+DummyLogger dummylogger;
+
+template<class T>
+DummyLogger& operator<<(DummyLogger& log, const T& ) {return log;}
+
+
 #include <string>
 #include <sstream>
 #include <stdexcept>
 
 #ifndef DCHECK
 #ifdef NDEBUG
+#define DLOG dummylogger
 #define ON_DEBUG(x)
 #define DCHECK_(x,y,z)
 #define DCHECK(x) 
@@ -19,6 +28,7 @@
 #define DCHECK_GE(x, y) 
 #define DCHECK_GT(x, y) 
 #else//NDEBUG
+#define DLOG std::cout 
 #define ON_DEBUG(x) x
 #define DCHECK_(x,y,z) \
   if (!(x)) throw std::runtime_error(std::string(" in file ") + __FILE__ + ':' + std::to_string(__LINE__) + (" the check failed: " #x) + ", we got " + std::to_string(y) + " vs " + std::to_string(z))
