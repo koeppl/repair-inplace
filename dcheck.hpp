@@ -11,6 +11,19 @@ template<class T>
 DummyLogger& operator<<(DummyLogger& log, const T& ) {return log;}
 
 
+#ifdef VERBOSE
+#define VLOG std::cout 
+#else
+#define VLOG dummylogger
+#endif
+
+#ifdef VVERBOSE
+#define VVLOG std::cout 
+#else
+#define VVLOG dummylogger
+#endif
+
+
 #include <string>
 #include <sstream>
 #include <stdexcept>

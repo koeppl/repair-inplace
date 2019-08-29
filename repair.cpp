@@ -11,7 +11,7 @@ using namespace std;
 namespace fs = std::filesystem;
 
 using bigram_t = uint32_t;
-using char_type = uint8_t; // representing the alphabet size
+using char_type = uint16_t; // representing the alphabet size
 
 bigram_t make_bigram(uint32_t a, uint32_t b) {
 	DCHECK_LT(a, 1ULL<<16);
@@ -152,7 +152,10 @@ int main(int argc, char *argv[]) {
 
 
 	if(argc < 2) {
-		std::cerr << "Usage: " << argv[0] << " filename [prefixlength] [additional_memory]" << std::endl;
+		std::cerr << "Usage: " << argv[0] << " -f filename [-p prefixlength] [-m additional_memory]" << std::endl;
+		std::cerr << "  -f: " << '\t' << "file to compress with Re-Pair" << std::endl;
+		std::cerr << "  -p: " << '\t' << "the prefix (number of characters) to compress (default is the entire file)" << std::endl;
+		std::cerr << "  -m: " << '\t' << "additional memory to reserve (number in bytes)" << std::endl;
 		return 1;
 	}
 
@@ -232,16 +235,17 @@ int main(int argc, char *argv[]) {
 		if(text_length < 100) {
 			std::cout << text_to_string(text, text_length);
 		}
+		const char_type maximum_terminal_character = maximum_character;
+		std::cout << "largest terminal: " << static_cast<size_t>(maximum_character) << std::endl;
 
-
-		size_t available_entries = (sizeof(char_type)*(memory_budget-text_length))/sizeof(Entry);
-		DCHECK_GT(available_entries, 2); // need at least some memory
-		// for(size_t i = text_length; i <  memory_budget; ++i) { text[i] = 0; }
 		size_t round_k = 0;
-		
 		while(true) { // for loop for every round
+			const size_t available_entries = (sizeof(char_type)*(memory_budget-text_length))/sizeof(Entry);
+			DCHECK_GT(available_entries, 2); // need at least some memory
+
 			++round_k;
 			std::cout << "Round " << round_k << std::endl;
+			std::cout << "frequency Storage: " << available_entries << std::endl;
 
 			Entry*const entries = reinterpret_cast<Entry*>(text+text_length);
 			for(size_t i = 0; i < available_entries; ++i) { entries[i].clear(); }
@@ -282,17 +286,17 @@ int main(int argc, char *argv[]) {
 							DCHECK_EQ(bigram_frequency(text, text_length, helperTable[k].first(), helperTable[k].second()), helperTable[k].frequency());
 						}
 					} 
-					DLOG << "remainder helperTable before sort:" << helperTable.to_string();
+					VVLOG << "remainder helperTable before sort:" << helperTable.to_string();
 					std::sort(entries, entries+available_entries, [](const Entry&a, const Entry&b) {
 							// true if a > b
 							return a.frequency() > b.frequency();
 							});
-					DLOG << "remainder helperTable after sort:" << helperTable.to_string();
+					VVLOG << "remainder helperTable after sort:" << helperTable.to_string();
 
 					helperTable.clear();
 				}
 			}
-			DLOG << "final table:" << mainTable.to_string();
+			VVLOG << "final table:" << mainTable.to_string();
 
  ON_DEBUG(
 		for(size_t i = 0; i < mainTable.length(); ++i) {
@@ -309,10 +313,11 @@ int main(int argc, char *argv[]) {
 			size_t turn_i = 0;
 			for(size_t max_index = mainTable.max(); mainTable[max_index].frequency() >= min_frequency; max_index = mainTable.max()) {
 				++turn_i; // in each turn we create a new non-terminal
-				DLOG << "Turn " << turn_i << " of Round " << round_k << std::endl;
+				VVLOG << "turn " << turn_i << " of round " << round_k << '\n';
+				DCHECK_LE(static_cast<size_t>(maximum_character)+1, std::numeric_limits<char_type>::max());
 
 				Entry& max_entry = mainTable[mainTable.max()]; // this is the bigram we want to replace
-				std::cout << "CREATE RULE " << char(maximum_character+1) << " -> " << max_entry.to_string() << std::endl;
+				VLOG << "create rule " << static_cast<size_t>(maximum_character+1) << " -> " << max_entry.to_string() << '\n';
 				++maximum_character; // new non-terminal gets value of maximum_character assigned
 				size_t replacement_offset = 0;
 				for(size_t i = 0; i+1 < text_length; ++i) {
@@ -457,7 +462,9 @@ int main(int argc, char *argv[]) {
 
 			}// for looping all elements of the frequency table
 		}// while loop for rounds
-		std::cout << "Size of start symbol: " << text_length << std::endl;
+		std::cout << "size of start symbol: " << text_length << std::endl;
+		std::cout << "number of rounds: " << round_k << std::endl;
+		std::cout << "number of non-terminals: " << static_cast<size_t>(maximum_character - maximum_terminal_character) << std::endl;
 
 		delete [] text;
 
