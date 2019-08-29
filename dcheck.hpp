@@ -9,6 +9,7 @@
 
 #ifndef DCHECK
 #ifdef NDEBUG
+#define ON_DEBUG(x)
 #define DCHECK_(x,y,z)
 #define DCHECK(x) 
 #define DCHECK_EQ(x, y) 
@@ -18,6 +19,7 @@
 #define DCHECK_GE(x, y) 
 #define DCHECK_GT(x, y) 
 #else//NDEBUG
+#define ON_DEBUG(x) x
 #define DCHECK_(x,y,z) \
   if (!(x)) throw std::runtime_error(std::string(" in file ") + __FILE__ + ':' + std::to_string(__LINE__) + (" the check failed: " #x) + ", we got " + std::to_string(y) + " vs " + std::to_string(z))
 #define DCHECK(x) \
