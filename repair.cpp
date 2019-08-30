@@ -320,7 +320,7 @@ int main(int argc, char *argv[]) {
 				VLOG << "create rule " << static_cast<size_t>(maximum_character+1) << " -> " << max_entry.to_string() << '\n';
 				++maximum_character; // new non-terminal gets value of maximum_character assigned
 				size_t replacement_offset = 0;
-				for(size_t i = 0; i+1 < text_length; ++i) {
+				for(size_t i = 0; i+replacement_offset < text_length; ++i) {
 					text[i] = text[i+replacement_offset];
 					const char_type next_char = text[i+replacement_offset+1];
 					if(i+replacement_offset+1 < text_length &&
