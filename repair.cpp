@@ -280,7 +280,7 @@ int main(int argc, char *argv[]) {
 						if(pos == (-1ULL)) { continue; }
 						else { helperTable[pos].increment(); }
 					}
-					for(size_t k = 0; k < helperTable.length(); ++k) { 
+					for(size_t k = 0; k < helperTable.length(); ++k) {  //CAVEAT: we do not need to scan the area of the helperTable again if we store in it already the correct frequencies
 						if(helperTable[k].valid()) {
 							helperTable[k].decrement(); // since insert also counts one up
 							DCHECK_EQ(bigram_frequency(text, text_length, helperTable[k].first(), helperTable[k].second()), helperTable[k].frequency());
