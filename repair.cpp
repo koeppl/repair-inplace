@@ -471,7 +471,7 @@ int main(int argc, char *argv[]) {
 		}// while loop for rounds
 		std::cout << "size of start symbol: " << text_length << std::endl;
 		std::cout << "number of rounds: " << round_k << std::endl;
-		std::cout << "number of non-terminals: " << static_cast<size_t>(maximum_character - maximum_terminal_character) << std::endl;
+		std::cout << "number of non-terminals: " << static_cast<size_t>(maximum_character - maximum_terminal_character + 1) << std::endl;
 
 		delete [] text;
 
