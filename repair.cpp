@@ -10,10 +10,12 @@
 using namespace std;
 namespace fs = std::filesystem;
 
+// CAVEAT: the character and bigram types are fixed. We should represent a character as an integer of variable bit width
 using bigram_t = uint32_t;
 using char_type = uint16_t; // representing the alphabet size
 
-bigram_t make_bigram(uint32_t a, uint32_t b) {
+// CAVEAT: make_bigram works only as long as `a` and `b` do not exceed 2^16.
+bigram_t make_bigram(uint32_t a, uint32_t b) { 
 	DCHECK_LT(a, 1ULL<<16);
 	DCHECK_LT(b, 1ULL<<16);
 	return (a<<16) + b;
@@ -103,6 +105,7 @@ struct FrequencyTable {
 
 };
 
+// only for debug purpose 
 std::string text_to_string(const char_type*const text, size_t text_length) {
 	std::stringstream ss;
 	ss << "Text: ";
@@ -113,6 +116,7 @@ std::string text_to_string(const char_type*const text, size_t text_length) {
 	return ss.str();
 }
 
+// only for debug purpose 
 size_t character_frequency(const char_type*const text, size_t text_length, char_type a) {
 	size_t frequency = 0;
 	for(size_t i = 0; i < text_length; ++i) {
@@ -122,6 +126,7 @@ size_t character_frequency(const char_type*const text, size_t text_length, char_
 }
 
 
+// only for debug purpose 
 size_t bigram_frequency(const char_type*const text, size_t text_length, char_type a, char_type b) {
 	bool matched_first = false;
 	size_t frequency = 0;
@@ -146,8 +151,8 @@ size_t bigram_frequency(const char_type*const text, size_t text_length, char_typ
 
 int main(int argc, char *argv[]) {
 	
-	size_t additional_memory = 200;
-	size_t text_length = 0;
+	size_t additional_memory = 200; // default number of bytes available
+	size_t text_length = 0; // size of the text we deal with, subject to shrinkage after a turn
 	std::string filename;
 
 
@@ -220,13 +225,13 @@ int main(int argc, char *argv[]) {
 	std::cout << "file name: " << filename << std::endl;
 	std::cout << "byte size of an entry: " << sizeof(Entry) << std::endl;
 	try {
-		// size_t text_length = fs::file_size(filename);  // size of the text we deal with, subject to shrinkage
 		const size_t memory_budget = text_length+additional_memory; // constant size of total memory we have
 		char_type maximum_character = 0; // the currently maximum value a character can have
 
 		DCHECK_LT(text_length, memory_budget); // need at least some memory
 
-		char_type*const text = new char_type[memory_budget];
+		// CAVEAT: the text has a fixed bit width
+		char_type*const text = new char_type[memory_budget]; // create our working space and store the text in it
 		std::ifstream is(filename);
 		for(size_t i = 0; i < text_length && is; ++i) {
 			text[i] = is.get();
@@ -244,8 +249,8 @@ int main(int argc, char *argv[]) {
 			DCHECK_GT(available_entries, 2); // need at least some memory
 
 			++round_k;
-			std::cout << "Round " << round_k << std::endl;
-			std::cout << "frequency Storage: " << available_entries << std::endl;
+			std::cout << "Round " << round_k << std::endl; // round and f_k as in the paper
+			std::cout << "f_k: " << available_entries << std::endl; 
 
 			Entry*const entries = reinterpret_cast<Entry*>(text+text_length);
 			for(size_t i = 0; i < available_entries; ++i) { entries[i].clear(); }
@@ -261,7 +266,7 @@ int main(int argc, char *argv[]) {
 					pos = helperTable.insert(bigram);
 					DCHECK_NE(pos, (-1ULL));
 				} 
-				// else {
+				// else { // CAVEAT: use this code to start already counting when populating helperTable
 				// 	helperTable[pos].increment();
 				// }
 				// std::cout << pos << std::endl;
@@ -280,13 +285,14 @@ int main(int argc, char *argv[]) {
 						if(pos == (-1ULL)) { continue; }
 						else { helperTable[pos].increment(); }
 					}
-					for(size_t k = 0; k < helperTable.length(); ++k) { 
+					for(size_t k = 0; k < helperTable.length(); ++k) {  //CAVEAT: we do not need to scan the area of the helperTable again if we store in it already the correct frequencies
 						if(helperTable[k].valid()) {
 							helperTable[k].decrement(); // since insert also counts one up
 							DCHECK_EQ(bigram_frequency(text, text_length, helperTable[k].first(), helperTable[k].second()), helperTable[k].frequency());
 						}
 					} 
 					VVLOG << "remainder helperTable before sort:" << helperTable.to_string();
+					// CAVEAT: use a better sorting algorithm
 					std::sort(entries, entries+available_entries, [](const Entry&a, const Entry&b) {
 							// true if a > b
 							return a.frequency() > b.frequency();
@@ -320,7 +326,7 @@ int main(int argc, char *argv[]) {
 				VLOG << "create rule " << static_cast<size_t>(maximum_character+1) << " -> " << max_entry.to_string() << '\n';
 				++maximum_character; // new non-terminal gets value of maximum_character assigned
 				size_t replacement_offset = 0;
-				for(size_t i = 0; i+1 < text_length; ++i) {
+				for(size_t i = 0; i+replacement_offset < text_length; ++i) {
 					text[i] = text[i+replacement_offset];
 					const char_type next_char = text[i+replacement_offset+1];
 					if(i+replacement_offset+1 < text_length &&
@@ -385,6 +391,7 @@ int main(int argc, char *argv[]) {
 				char_type*const D = text+text_length;
 				size_t D_length = 0; // length of table D
 
+				// CAVEAT: we could merge the preceding characters and the succeeding characters step into a single code with a few lambda functions
 				// take preceding characters
 				for(size_t i = 0; i < text_length; ++i) {
 					if(i > 0 && text[i] == maximum_character) {
@@ -464,7 +471,7 @@ int main(int argc, char *argv[]) {
 		}// while loop for rounds
 		std::cout << "size of start symbol: " << text_length << std::endl;
 		std::cout << "number of rounds: " << round_k << std::endl;
-		std::cout << "number of non-terminals: " << static_cast<size_t>(maximum_character - maximum_terminal_character) << std::endl;
+		std::cout << "number of non-terminals: " << static_cast<size_t>(maximum_character - maximum_terminal_character + 1) << std::endl;
 
 		delete [] text;
 

@@ -1,0 +1,32 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Köppl"
+  given-names: "Dominik"
+  orcid: "http://orcid.org/0000-0002-8721-4444"
+title: "Re-Pair in Small Space"
+url: "https://github.com/koeppl/repair-inplace"
+preferred-citation:
+  type: article
+  authors:
+  - family-names: "Köppl"
+    given-names: "Dominik"
+    orcid: "http://orcid.org/0000-0002-8721-4444"
+  - family-names: "I"
+    given-names: "Tomohiro"
+  - family-names: "Furuya"
+    given-names: "Isamu"
+  - family-names: "Takabatake"
+    given-names: "Yoshimasa"
+  - family-names: "Sakai"
+    given-names: "Kensuke"
+  - family-names: "Goto"
+    given-names: "Keisuke"
+  doi: 10.3390/a14010005
+  journal: "Algorithms"
+  start: 1  # First page number
+  end: 20 # Last page number
+  title: "Re-Pair in Small Space"
+  year: 2021
+  issue: 5
+  volume: 14(1)
