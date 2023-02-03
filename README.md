@@ -1,5 +1,7 @@
 Re-Pair In-Place
 ================
+![automatic test](https://github.com/koeppl/repair-inplace/actions/workflows/check.yml/badge.svg)
+
 
 This is a proof-of-concept implementation of the paper
 
