@@ -205,14 +205,14 @@ int main(int argc, char *argv[]) {
 			return 4;
 		}
 	}
-	if(text_length == 0) {
-		try {
-			text_length = fs::file_size(filename);  // size of the text we deal with, subject to shrinkage
-		} catch(fs::filesystem_error& e) {
-			std::cerr << "Could not read file " << filename << std::endl;
-			std::cerr << e.what() << '\n';
-			return 3;
-		}
+	try {
+	    const size_t total_text_length = fs::file_size(filename);  // size of the text we deal with, subject to shrinkage
+	    if(text_length == 0) { text_length = total_text_length; }
+	    else { text_length = std::min(text_length, total_text_length); }
+	} catch(fs::filesystem_error& e) {
+	    std::cerr << "Could not read file " << filename << std::endl;
+	    std::cerr << e.what() << '\n';
+	    return 3;
 	}
 
 	std::cout << "text length: " << text_length << std::endl;
